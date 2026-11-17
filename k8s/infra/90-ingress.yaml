@@ -1,0 +1,27 @@
+# Ingress NGINX: expõe os 3 serviços sob um único host (garage.localhost).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: garage
+  namespace: garage
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: garage.localhost
+      http:
+        paths:
+          - path: /os(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: {service: {name: os-service, port: {number: 80}}}
+          - path: /billing(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: {service: {name: billing-service, port: {number: 80}}}
+          - path: /execution(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: {service: {name: execution-service, port: {number: 80}}}
+          - path: /mercadopago(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: {service: {name: payment-mock-service, port: {number: 80}}}

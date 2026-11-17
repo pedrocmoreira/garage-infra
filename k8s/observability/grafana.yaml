@@ -1,0 +1,59 @@
+# O dashboard é carregado do ConfigMap "grafana-dashboards" criado pelo scripts/deploy-kind.sh
+# a partir de observability/grafana/dashboards/garage-saga.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: garage
+data:
+  datasources.yml: |
+    apiVersion: 1
+    datasources:
+      - {name: Prometheus, uid: prometheus, type: prometheus, access: proxy, url: "http://prometheus:9090", isDefault: true}
+      - {name: Jaeger, uid: jaeger, type: jaeger, access: proxy, url: "http://jaeger:16686"}
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - {name: garage, folder: Garage System, type: file, options: {path: /var/lib/grafana/dashboards}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: garage
+spec:
+  selector: {app: grafana}
+  ports: [{port: 3000}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: garage
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: grafana}}
+  template:
+    metadata: {labels: {app: grafana}}
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.3.0
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom: {secretKeyRef: {name: garage-secrets, key: GRAFANA_ADMIN_USER}}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: garage-secrets, key: GRAFANA_ADMIN_PASSWORD}}
+          ports: [{containerPort: 3000}]
+          volumeMounts:
+            - {name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasources.yml, subPath: datasources.yml}
+            - {name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml, subPath: dashboards.yml}
+            - {name: dashboards, mountPath: /var/lib/grafana/dashboards}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {memory: 256Mi}
+      volumes:
+        - name: provisioning
+          configMap: {name: grafana-provisioning}
+        - name: dashboards
+          configMap: {name: grafana-dashboards, optional: true}

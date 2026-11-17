@@ -1,0 +1,1054 @@
+{
+  "info": {
+    "name": "Garage System - Fase 4 (Microsserviços + Saga)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Fluxo completo da OS pelos 3 microsserviços. Execute as pastas em ordem (Runner). Aguarde ~1s entre etapas assíncronas (o Runner usa delay de 1500ms). O pagamento é feito no payment-mock-service (simulador do Mercado Pago), que envia o webhook ao Billing."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "os_url",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "billing_url",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "execution_url",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "username",
+      "value": "admin"
+    },
+    {
+      "key": "password",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "customerId",
+      "value": ""
+    },
+    {
+      "key": "vehicleId",
+      "value": ""
+    },
+    {
+      "key": "osId",
+      "value": ""
+    },
+    {
+      "key": "budgetToken",
+      "value": ""
+    },
+    {
+      "key": "budgetId",
+      "value": ""
+    },
+    {
+      "key": "cpf",
+      "value": ""
+    },
+    {
+      "key": "plate",
+      "value": ""
+    },
+    {
+      "key": "mock_url",
+      "value": "http://localhost:8084"
+    },
+    {
+      "key": "preferenceId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Autenticação",
+      "item": [
+        {
+          "name": "Login (OS Service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Cadastros",
+      "item": [
+        {
+          "name": "Criar cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/customers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document\": \"{{cpf}}\",\n  \"name\": \"Maria Souza\",\n  \"email\": \"maria@example.com\",\n  \"phone\": \"11988887777\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"customerId\", pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function cpf(){const n=[...Array(9)].map(()=>Math.floor(Math.random()*10));for(let k=0;k<2;k++){const s=n.reduce((a,v,i)=>a+v*(n.length+1-i),0);const d=(s*10)%11;n.push(d===10?0:d);}return n.join('');}",
+                  "pm.collectionVariables.set(\"cpf\", cpf());",
+                  "const letters=\"ABCDEFGHJKLMNPRSTUVWXYZ\";const r=()=>letters[Math.floor(Math.random()*letters.length)];",
+                  "pm.collectionVariables.set(\"plate\", r()+r()+r()+Math.floor(Math.random()*10)+r()+Math.floor(10+Math.random()*90));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar veículo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/vehicles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plate\": \"{{plate}}\",\n  \"make\": \"Volkswagen\",\n  \"model\": \"Polo\",\n  \"year\": 2023,\n  \"color\": \"Prata\",\n  \"customerId\": \"{{customerId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"vehicleId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Catálogo de serviços",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/catalog/services"
+          }
+        },
+        {
+          "name": "Catálogo de peças",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/catalog/parts"
+          }
+        },
+        {
+          "name": "Estoque (Execution)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{execution_url}}/api/inventory"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Fluxo feliz (Saga)",
+      "item": [
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/service-orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"serviceIds\": [\n    1\n  ],\n  \"parts\": [\n    {\n      \"partId\": 2,\n      \"quantity\": 4\n    }\n  ],\n  \"observations\": \"Barulho no motor\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"osId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fila de execução",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/queue"
+          }
+        },
+        {
+          "name": "Mecânico inicia diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/start"
+          }
+        },
+        {
+          "name": "Mecânico conclui diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Óleo vencido e filtro saturado\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Orçamento gerado (Billing)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/budgets/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"pendente\", () => pm.expect(pm.response.json().status).to.eql(\"PENDING_APPROVAL\"));",
+                  "pm.collectionVariables.set(\"budgetToken\", pm.response.json().publicToken);",
+                  "pm.collectionVariables.set(\"budgetId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS aguardando aprovação",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = AGUARDANDO_APROVACAO\", () => pm.expect(pm.response.json().status).to.eql(\"AGUARDANDO_APROVACAO\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente aprova (link do e-mail)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/public/budgets/{{budgetToken}}/approve",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "OS aguardando pagamento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = AGUARDANDO_PAGAMENTO\", () => pm.expect(pm.response.json().status).to.eql(\"AGUARDANDO_PAGAMENTO\"));",
+                  "console.log(\"Link de pagamento:\", pm.response.json().paymentUrl);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Link de pagamento (preferência Mercado Pago)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/payments/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"preferenceId\", pm.response.json().preferenceId);",
+                  "console.log(\"Checkout:\", pm.response.json().checkoutUrl);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente paga no checkout (simulador MP) - aprovado",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{mock_url}}/api/mock/checkout/{{preferenceId}}/pay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"outcome\": \"APRO\"}"
+            },
+            "description": "Simula o cliente pagando no checkout. O simulador envia o webhook assinado (x-signature) para /webhooks/mercadopago do Billing. Resultados: APRO (aprovado), FUND (saldo insuficiente), OTHE (recusado), CONT (pendente)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"pagamento APRO\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS em execução",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = EM_EXECUCAO\", () => pm.expect(pm.response.json().status).to.eql(\"EM_EXECUCAO\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mecânico inicia reparo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/repair/start"
+          }
+        },
+        {
+          "name": "Mecânico conclui reparo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/repair/complete"
+          }
+        },
+        {
+          "name": "OS finalizada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = FINALIZADA\", () => pm.expect(pm.response.json().status).to.eql(\"FINALIZADA\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar entrega",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}/deliver"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = ENTREGUE\", () => pm.expect(pm.response.json().status).to.eql(\"ENTREGUE\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Histórico da OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}/history"
+          }
+        },
+        {
+          "name": "Estado da Saga",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}/saga"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"COMPLETED\", () => pm.expect(pm.response.json().status).to.eql(\"COMPLETED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consulta pública (cliente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/public/service-orders/OS-2026-00001",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Falha: falta de peças -> estorno (compensação)",
+      "item": [
+        {
+          "name": "Abrir OS com pastilha (sem estoque)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/service-orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"serviceIds\": [\n    3\n  ],\n  \"parts\": [\n    {\n      \"partId\": 3,\n      \"quantity\": 2\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicia diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/start"
+          }
+        },
+        {
+          "name": "Conclui diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Pastilhas gastas\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Orçamento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/budgets/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"budgetToken\", pm.response.json().publicToken);",
+                  "pm.collectionVariables.set(\"budgetId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente aprova",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/public/budgets/{{budgetToken}}/approve",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Link de pagamento (preferência Mercado Pago)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/payments/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"preferenceId\", pm.response.json().preferenceId);",
+                  "console.log(\"Checkout:\", pm.response.json().checkoutUrl);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente paga no checkout (simulador MP) - aprovado",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{mock_url}}/api/mock/checkout/{{preferenceId}}/pay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"outcome\": \"APRO\"}"
+            },
+            "description": "Simula o cliente pagando no checkout. O simulador envia o webhook assinado (x-signature) para /webhooks/mercadopago do Billing. Resultados: APRO (aprovado), FUND (saldo insuficiente), OTHE (recusado), CONT (pendente)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"pagamento APRO\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS cancelada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = CANCELADA\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELADA\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Saga compensada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}/saga"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"COMPENSATED\", () => pm.expect(pm.response.json().status).to.eql(\"COMPENSATED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagamento estornado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/payments/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"REFUNDED\", () => pm.expect(pm.response.json().status).to.eql(\"REFUNDED\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Falha: orçamento recusado",
+      "item": [
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/service-orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"serviceIds\": [\n    2\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicia diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/start"
+          }
+        },
+        {
+          "name": "Conclui diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Desalinhado\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Orçamento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/budgets/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"budgetToken\", pm.response.json().publicToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente recusa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/public/budgets/{{budgetToken}}/reject",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "OS cancelada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = CANCELADA\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELADA\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execução cancelada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"CANCELLED\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELLED\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Falha: pagamento recusado",
+      "item": [
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/service-orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"serviceIds\": [\n    1\n  ],\n  \"parts\": [\n    {\n      \"partId\": 1,\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicia diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/start"
+          }
+        },
+        {
+          "name": "Conclui diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{execution_url}}/api/executions/{{osId}}/diagnosis/complete"
+          }
+        },
+        {
+          "name": "Orçamento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/budgets/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"budgetToken\", pm.response.json().publicToken);",
+                  "pm.collectionVariables.set(\"budgetId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente aprova",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/public/budgets/{{budgetToken}}/approve",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Link de pagamento (preferência Mercado Pago)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{billing_url}}/api/payments/service-order/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"preferenceId\", pm.response.json().preferenceId);",
+                  "console.log(\"Checkout:\", pm.response.json().checkoutUrl);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente paga no checkout (simulador MP) - recusado",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{mock_url}}/api/mock/checkout/{{preferenceId}}/pay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"outcome\": \"FUND\"}"
+            },
+            "description": "Simula o cliente pagando no checkout. O simulador envia o webhook assinado (x-signature) para /webhooks/mercadopago do Billing. Resultados: APRO (aprovado), FUND (saldo insuficiente), OTHE (recusado), CONT (pendente)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"pagamento FUND\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS cancelada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{os_url}}/api/service-orders/{{osId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = CANCELADA\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELADA\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Cancelamento manual",
+      "item": [
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/service-orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"vehicleId\": \"{{vehicleId}}\",\n  \"serviceIds\": [\n    1\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelar OS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{os_url}}/api/service-orders/{{osId}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Cliente desistiu\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status da OS = CANCELADA\", () => pm.expect(pm.response.json().status).to.eql(\"CANCELADA\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

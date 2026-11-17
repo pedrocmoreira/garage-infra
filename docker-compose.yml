@@ -1,0 +1,174 @@
+# Ambiente completo da Fase 4: 3 microsserviços + simulador do Mercado Pago + bancos dedicados + RabbitMQ + observabilidade.
+# Uso: cp .env.example .env && docker compose up -d --build
+# Os repositórios dos serviços devem estar clonados como pastas irmãs deste (../os-service etc.).
+name: garage
+
+x-service-common: &service-common
+  restart: unless-stopped
+  environment: &common-env
+    RABBITMQ_HOST: rabbitmq
+    RABBITMQ_USER: ${RABBITMQ_USER}
+    RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    JWT_SECRET: ${JWT_SECRET}
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+    LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
+
+services:
+  # ------------------------- Dados -------------------------
+  os-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${OS_DB_NAME}
+      POSTGRES_USER: ${OS_DB_USER}
+      POSTGRES_PASSWORD: ${OS_DB_PASSWORD}
+    ports: ["5432:5432"]
+    volumes: [os-db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OS_DB_USER} -d ${OS_DB_NAME}"]
+      interval: 5s
+      retries: 10
+
+  billing-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${BILLING_DB_NAME}
+      POSTGRES_USER: ${BILLING_DB_USER}
+      POSTGRES_PASSWORD: ${BILLING_DB_PASSWORD}
+    ports: ["5433:5432"]
+    volumes: [billing-db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${BILLING_DB_USER} -d ${BILLING_DB_NAME}"]
+      interval: 5s
+      retries: 10
+
+  execution-db:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    ports: ["27017:27017"]
+    volumes: [execution-db-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    platform: linux/amd64
+    ports: ["1025:1025", "8025:8025"]
+
+  # ------------------------- Microsserviços -------------------------
+  os-service:
+    <<: *service-common
+    build: ../os-service
+    image: garage/os-service:local
+    ports: ["8081:8081"]
+    environment:
+      <<: *common-env
+      DB_HOST: os-db
+      DB_NAME: ${OS_DB_NAME}
+      DB_USER: ${OS_DB_USER}
+      DB_PASSWORD: ${OS_DB_PASSWORD}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    depends_on:
+      os-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  billing-service:
+    <<: *service-common
+    build: ../billing-service
+    image: garage/billing-service:local
+    ports: ["8082:8082"]
+    environment:
+      <<: *common-env
+      DB_HOST: billing-db
+      DB_NAME: ${BILLING_DB_NAME}
+      DB_USER: ${BILLING_DB_USER}
+      DB_PASSWORD: ${BILLING_DB_PASSWORD}
+      MP_API_BASE_URL: ${MP_API_BASE_URL:-http://payment-mock-service:8084}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+      MP_NOTIFICATION_URL: ${MP_NOTIFICATION_URL:-http://billing-service:8082/webhooks/mercadopago}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+    depends_on:
+      billing-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      payment-mock-service: {condition: service_started}
+
+  execution-service:
+    <<: *service-common
+    build: ../execution-service
+    image: garage/execution-service:local
+    ports: ["8083:8083"]
+    environment:
+      <<: *common-env
+      MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@execution-db:27017/${MONGO_DB_NAME}?authSource=admin
+    depends_on:
+      execution-db: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # Simulador do Mercado Pago (repositório próprio). Mesmo contrato HTTP da API real.
+  payment-mock-service:
+    restart: unless-stopped
+    build: ../payment-mock-service
+    image: garage/payment-mock-service:local
+    ports: ["8084:8084"]
+    environment:
+      MOCK_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
+      MOCK_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET}
+      MOCK_PUBLIC_BASE_URL: ${MOCK_PUBLIC_BASE_URL:-http://localhost:8084}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
+
+  # ------------------------- Observabilidade -------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes: [./observability/otel/config.yaml:/etc/otel/config.yaml:ro]
+    ports: ["4317:4317", "4318:4318"]
+    depends_on: [jaeger]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686"]
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    volumes: [./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro]
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["${GRAFANA_PORT:-3000}:3000"]
+    depends_on: [prometheus, jaeger]
+
+volumes:
+  os-db-data:
+  billing-db-data:
+  execution-db-data:
