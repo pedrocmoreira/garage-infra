@@ -4,11 +4,11 @@ Infraestrutura compartilhada e documentação geral da oficina mecânica refator
 
 | Repositório | Responsabilidade | Banco | Porta |
 |---|---|---|---|
-| `os-service` | Ordem de Serviço, cadastros, histórico e **orquestrador da Saga** | PostgreSQL | 8081 |
-| `billing-service` | Orçamento, aprovação do cliente e pagamento **Mercado Pago** | PostgreSQL | 8082 |
-| `execution-service` | Fila de execução, diagnóstico, reparo e estoque de peças | **MongoDB** | 8083 |
-| `payment-mock-service` | **Simulador do Mercado Pago** (preferências, pagamentos, estornos, webhook assinado) | em memória | 8084 |
-| `garage-infra` (este) | docker-compose, Kubernetes da infra, observabilidade, Postman, docs | — | — |
+| [`os-service`](https://github.com/pedrocmoreira/os-service) | Ordem de Serviço, cadastros, histórico e **orquestrador da Saga** | PostgreSQL | 8081 |
+| [`billing-service`](https://github.com/pedrocmoreira/billing-service) | Orçamento, aprovação do cliente e pagamento **Mercado Pago** | PostgreSQL | 8082 |
+| [`execution-service`](https://github.com/pedrocmoreira/execution-service) | Fila de execução, diagnóstico, reparo e estoque de peças | **MongoDB** | 8083 |
+| [`payment-mock-service`](https://github.com/pedrocmoreira/payment-mock-service) | **Simulador do Mercado Pago** (preferências, pagamentos, estornos, webhook assinado) | em memória | 8084 |
+| [`garage-infra`](https://github.com/pedrocmoreira/garage-infra) (este) | docker-compose, Kubernetes da infra, observabilidade, Postman, docs | — | — |
 
 ## Arquitetura
 
@@ -153,6 +153,10 @@ docker compose up -d --build
 ### 3. Postman
 `postman/garage-fase4.postman_collection.json`: fluxo feliz, falta de peças com estorno, orçamento recusado, pagamento recusado
 e cancelamento manual. Configure a variável `password` e rode a collection inteira no *Runner* com *delay* de 1500 ms.
+
+## Qualidade (SonarCloud)
+Projetos públicos em <https://sonarcloud.io/organizations/pedrocmoreira/projects>. A pipeline de cada serviço envia a análise
+(com a cobertura do JaCoCo) e falha se o Quality Gate não passar.
 
 ## Documentos
 - `docs/entrega-fase4.md` — conteúdo do PDF a ser entregue no portal.

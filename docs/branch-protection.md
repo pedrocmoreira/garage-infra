@@ -12,7 +12,7 @@ Aplique em **cada um dos 5 repositórios** (`os-service`, `billing-service`, `ex
 
 ## Pelo terminal (GitHub CLI)
 ```bash
-OWNER=seu-usuario
+OWNER=pedrocmoreira
 for REPO in os-service billing-service execution-service payment-mock-service; do
 gh api -X PUT "repos/$OWNER/$REPO/branches/main/protection" \
   -H "Accept: application/vnd.github+json" \
@@ -30,9 +30,7 @@ done
 ## Secrets e variables de cada repositório de serviço
 | Nome | Tipo | Uso |
 |---|---|---|
-| `SONAR_TOKEN` | Secret | Token do SonarCloud (My Account → Security) |
-| `SONAR_ORGANIZATION` | Variable | Organização no SonarCloud |
-| `SONAR_PROJECT_KEY` | Variable | Chave do projeto no SonarCloud |
+| `SONAR_TOKEN` | Secret | Token do SonarCloud (My Account → Security). Organização (`pedrocmoreira`) e chave do projeto (`pedrocmoreira_<serviço>`) já estão no `pom.xml` |
 | `KUBE_CONFIG` | Secret (opcional) | kubeconfig **em base64** de um cluster real. Sem ele, o deploy roda em um cluster *kind* efêmero no runner |
 
 O job de deploy usa o *environment* `production`. Crie-o em Settings → Environments; se quiser, adicione aprovação manual.

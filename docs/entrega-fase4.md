@@ -10,11 +10,11 @@
 ## 2. Repositórios
 | Repositório | Link |
 |---|---|
-| OS Service (orquestrador) | <<https://github.com/OWNER/os-service>> |
-| Billing Service | <<https://github.com/OWNER/billing-service>> |
-| Execution Service | <<https://github.com/OWNER/execution-service>> |
-| Simulador do Mercado Pago | <<https://github.com/OWNER/payment-mock-service>> |
-| Infraestrutura / docs / Postman | <<https://github.com/OWNER/garage-infra>> |
+| OS Service (orquestrador) | https://github.com/pedrocmoreira/os-service |
+| Billing Service | https://github.com/pedrocmoreira/billing-service |
+| Execution Service | https://github.com/pedrocmoreira/execution-service |
+| Simulador do Mercado Pago | https://github.com/pedrocmoreira/payment-mock-service |
+| Infraestrutura / docs / Postman | https://github.com/pedrocmoreira/garage-infra |
 
 ## 3. Vídeo de demonstração
 <<link do YouTube/Vimeo (não listado), até 15 min>>
@@ -63,5 +63,7 @@ cluster) · GitHub Actions · GHCR · JaCoCo (gate 80%) · SonarCloud · JUnit 5
 | billing-service | 32 | 98,3% | 83,1% |
 | execution-service | 21 | 97,2% | 87,1% |
 | payment-mock-service | 13 | 98,1% | 89,2% |
+
+SonarCloud (Quality Gate e cobertura por serviço): <https://sonarcloud.io/organizations/pedrocmoreira/projects>
 
 <<Insira prints do JaCoCo, do SonarCloud (Quality Gate) e dos pipelines verdes.>>
