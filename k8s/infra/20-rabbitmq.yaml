@@ -30,10 +30,11 @@ spec:
               valueFrom: {secretKeyRef: {name: garage-secrets, key: RABBITMQ_USER}}
             - name: RABBITMQ_DEFAULT_PASS
               valueFrom: {secretKeyRef: {name: garage-secrets, key: RABBITMQ_PASSWORD}}
+          # Prontidão pela porta AMQP (leve); o "rabbitmq-diagnostics ping" consome CPU e falhava em clusters pequenos
           readinessProbe:
-            exec: {command: ["rabbitmq-diagnostics", "-q", "ping"]}
-            periodSeconds: 10
-            timeoutSeconds: 10
+            tcpSocket: {port: 5672}
+            initialDelaySeconds: 10
+            periodSeconds: 5
           resources:
             requests: {cpu: 100m, memory: 256Mi}
-            limits: {memory: 512Mi}
+            limits: {memory: 1Gi}
