@@ -159,6 +159,4 @@ Projetos públicos em <https://sonarcloud.io/organizations/pedrocmoreira/project
 (com a cobertura do JaCoCo) e falha se o Quality Gate não passar.
 
 ## Documentos
-- `docs/entrega-fase4.md` — conteúdo do PDF a ser entregue no portal.
-- `docs/roteiro-video.md` — roteiro do vídeo de até 15 minutos.
 - `docs/branch-protection.md` — proteção da branch `main` (PR obrigatório + checks).
